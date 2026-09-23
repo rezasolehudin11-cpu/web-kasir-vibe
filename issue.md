@@ -1,81 +1,72 @@
-# Plan Implementation: Backend Setup Web Kasir Sederhana
+# Plan Implementation: Fitur Autentikasi Web Kasir
 
-Dokumen ini berisi kriteria tugas dan panduan implementasi high-level untuk setup backend Web Kasir Sederhana menggunakan **Bun**, **Elysia.js**, **Drizzle ORM**, dan **MySQL**.
-
----
-
-## 1. Setup Project & Dependensi Dasar
-- [ ] Inisialisasi project Bun di direktori backend (atau root sesuai struktur repository).
-- [ ] Install dependensi utama:
-  - `elysia` (Framework Web Backend)
-  - `@elysiajs/cors` (Middleware CORS jika diperlukan)
-  - `drizzle-orm` (ORM Database)
-  - `mysql2` (Driver MySQL)
-- [ ] Install dependensi development:
-  - `drizzle-kit` (Migration & Schema Management Tool)
-  - `@types/bun` (TypeScript definitions untuk Bun)
-- [ ] Buat file konfigurasi `.env` dan `.env.example` yang memuat variabel koneksi database:
-  - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` / `DATABASE_URL`.
+Dokumen ini berisi kriteria tugas dan panduan implementasi untuk setup fitur autentikasi pada backend Web Kasir menggunakan **Bun**, **Elysia.js**, dan **Drizzle ORM** dengan database **MySQL**.
 
 ---
 
-## 2. Setup Database & Drizzle ORM
-- [ ] Buat file konfigurasi Drizzle (`drizzle.config.ts`) untuk mengatur driver MySQL, lokasi file skema, dan output migrasi.
-- [ ] Buat file modul koneksi database (`src/db/index.ts`) menggunakan `mysql2` pool dan instance `drizzle`.
-- [ ] Buat script npm / bun di `package.json` untuk perintah Drizzle Kit:
-  - `db:generate` (Generate migrasi SQL)
-  - `db:push` (Push perubahan skema langsung ke DB)
-  - `db:studio` (Menjalankan GUI Drizzle Studio)
-
----
-
-## 3. Skema Dasar Database (`src/db/schema.ts`)
-Buat definisi tabel MySQL menggunakan Drizzle ORM:
-- [ ] **Tabel `users`**:
+## 1. Pembaruan Skema Database (`src/db/schema.ts`)
+- [ ] **Modifikasi Tabel `users`**:
+  - Sesuaikan field agar memuat `email` (sebagai ganti atau tambahan dari `username`).
+  - Ubah nama field `password` menjadi `password_hash` untuk kejelasan.
+  - Skema akhir yang diharapkan:
+    - `id`: Int / Serial (Primary Key, Auto Increment)
+    - `name`: VarChar
+    - `email`: VarChar (Unique)
+    - `password_hash`: VarChar
+    - `role`: Enum ('admin', 'kasir')
+    - `createdAt`: Timestamp
+- [ ] **Buat Tabel Baru `sessions`**:
   - `id`: Int / Serial (Primary Key, Auto Increment)
-  - `name`: VarChar
-  - `username`: VarChar (Unique)
-  - `password`: VarChar (Hashed)
-  - `role`: Enum ('admin', 'kasir')
-  - `createdAt`: Timestamp
-- [ ] **Tabel `products`**:
-  - `id`: Int / Serial (Primary Key, Auto Increment)
-  - `name`: VarChar
-  - `price`: Decimal / BigInt
-  - `stock`: Int
-  - `createdAt`: Timestamp
-- [ ] **Tabel `transactions`**:
-  - `id`: Int / Serial (Primary Key, Auto Increment)
+  - `token`: VarChar (Unique, untuk menyimpan session token)
   - `userId`: Foreign Key ke `users.id`
-  - `totalAmount`: Decimal / BigInt
+  - `expiresAt`: Timestamp (Kapan token ini kedaluwarsa)
   - `createdAt`: Timestamp
-- [ ] **Tabel `transaction_items`**:
-  - `id`: Int / Serial (Primary Key)
-  - `transactionId`: Foreign Key ke `transactions.id`
-  - `productId`: Foreign Key ke `products.id`
-  - `quantity`: Int
-  - `price`: Decimal / BigInt (Harga saat transaksi)
+- [ ] Jalankan perintah `bun run db:generate` dan `bun run db:push` untuk menerapkan perubahan skema ke database MySQL.
 
 ---
 
-## 4. Setup Server Elysia & Endpoint Dasar
-- [ ] Buat entry point server Elysia (`src/index.ts`).
-- [ ] Tambahkan middleware umum (misal: JSON body parser, CORS).
-- [ ] Buat routing modular untuk API:
-  - **Health Check / Index**:
-    - `GET /api/health`: Return status server dan koneksi DB.
-  - **Products Endpoint (`src/routes/products.ts`)**:
-    - `GET /api/products`: Ambil semua daftar produk.
-    - `POST /api/products`: Tambah produk baru.
-    - `PUT /api/products/:id`: Update data/stok produk.
-    - `DELETE /api/products/:id`: Hapus produk.
-  - **Transactions Endpoint (`src/routes/transactions.ts`)**:
-    - `POST /api/transactions`: Buat transaksi kasir baru (menyimpan header transaksi dan item detail, serta mengupdate stok produk).
-    - `GET /api/transactions`: Ambil riwayat transaksi.
+## 2. Dependensi Autentikasi & Keamanan
+- [ ] Gunakan API bawaan Bun untuk hashing password, yaitu `Bun.password.hash()` dan `Bun.password.verify()`, sehingga tidak memerlukan library `bcrypt` eksternal. (Atau gunakan `bcrypt` jika preferensi khusus).
+- [ ] (Opsional) Buat utilitas khusus untuk men-generate random string session token, misal menggunakan `crypto.randomBytes` atau fungsi sejenis.
 
 ---
 
-## 5. Verifikasi & Pengujian High-Level
-- [ ] Server dapat dijalankan dengan perintah `bun run dev` tanpa error.
-- [ ] Perintah `drizzle-kit push` berhasil menghubungkan dan membuat tabel pada database MySQL.
-- [ ] Semua endpoint dasar merespons dengan HTTP Status Code yang sesuai (200, 201, 400, 404, 500).
+## 3. Implementasi REST API Auth (`src/routes/users.ts` atau `src/routes/auth.ts`)
+Buat modular route di Elysia.js untuk endpoint autentikasi dan integrasikan ke entry point server (`src/index.ts`).
+
+- [ ] **`POST /api/users/register` (Registrasi User Baru)**:
+  - Validasi body request: `name`, `email`, `password`, `role` (opsional, default 'kasir').
+  - Hash `password` menggunakan `Bun.password.hash()`.
+  - Simpan data user baru ke tabel `users` beserta `password_hash`-nya.
+  - Return respon status 201 dengan informasi user (kecuali password) atau pesan sukses.
+
+- [ ] **`POST /api/users/login` (Proses Login & Buat Session)**:
+  - Validasi body request: `email`, `password`.
+  - Cari user di tabel `users` berdasarkan `email`. Jika tidak ada, return error 401 Unauthorized.
+  - Verifikasi password dengan `Bun.password.verify(password, user.password_hash)`. Jika salah, return error 401.
+  - Jika berhasil, generate random string yang aman untuk session `token`.
+  - Simpan token tersebut ke tabel `sessions` dengan `userId` yang sesuai, dan set `expiresAt` (misal 24 jam atau 7 hari dari sekarang).
+  - Return respon berisi `token` (dan mungkin info user dasar). *Opsional: Set token dalam HTTP-Only Cookie*.
+
+- [ ] **Middleware Autentikasi (Auth Guard)**:
+  - Buat plugin/middleware Elysia untuk memproteksi endpoint yang membutuhkan login.
+  - Middleware harus membaca session token dari *Header* (misal: `Authorization: Bearer <token>`) atau *Cookie*.
+  - Cek tabel `sessions` untuk mencocokkan token. Jika token valid dan belum *expired* (`expiresAt` > sekarang), ambil `userId` dan cari data user-nya.
+  - Lempar context `user` ke endpoint selanjutnya. Jika tidak valid, throw 401 Unauthorized.
+
+- [ ] **`GET /api/users/current` (Ambil Data User Login)**:
+  - Terapkan middleware Autentikasi.
+  - Return data user (id, name, email, role) dari context `user` yang dilempar oleh middleware.
+
+- [ ] **`DELETE /api/users/logout` (Hapus Session)**:
+  - Terapkan middleware Autentikasi.
+  - Hapus atau invalidasi record di tabel `sessions` berdasarkan `token` yang digunakan saat ini.
+  - Return pesan berhasil logout.
+
+---
+
+## 4. Verifikasi & Pengujian
+- [ ] Flow Registrasi: Register berhasil dan password di-hash dalam database.
+- [ ] Flow Login: Login gagal dengan kredensial salah, dan login berhasil mereturn token serta menyimpannya ke tabel `sessions`.
+- [ ] Proteksi Endpoint: Mencoba akses `/api/users/current` tanpa token gagal, dengan token valid berhasil.
+- [ ] Flow Logout: Logout menghapus token dari database, sehingga token tersebut tidak bisa dipakai lagi untuk akses `/api/users/current`.
