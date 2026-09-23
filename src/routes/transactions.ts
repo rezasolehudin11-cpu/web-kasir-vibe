@@ -18,7 +18,7 @@ export const transactionRoutes = new Elysia({ prefix: "/api/transactions" })
     return { user };
   })
 
-  // POST /api/transactions (Proses Checkout Belanjaan)
+  // POST /api/transactions
   .post(
     "/",
     async ({ body, user, set }) => {
@@ -64,19 +64,53 @@ export const transactionRoutes = new Elysia({ prefix: "/api/transactions" })
     },
     {
       body: t.Object({
-        payAmount: t.Union([t.Number({ minimum: 0 }), t.String()]),
+        payAmount: t.Union([t.Number({ minimum: 0 }), t.String()], {
+          description: "Jumlah uang yang dibayarkan pelanggan",
+          examples: [100000],
+        }),
         items: t.Array(
           t.Object({
-            productId: t.Number({ minimum: 1 }),
-            quantity: t.Number({ minimum: 1 }),
+            productId: t.Number({
+              minimum: 1,
+              description: "ID produk yang dibeli",
+              examples: [1],
+            }),
+            quantity: t.Number({
+              minimum: 1,
+              description: "Jumlah unit produk yang dibeli",
+              examples: [2],
+            }),
           }),
-          { minItems: 1 }
+          {
+            minItems: 1,
+            description: "Daftar produk yang dibeli dalam satu transaksi",
+          }
         ),
       }),
+      detail: {
+        tags: ["Transactions"],
+        summary: "Proses Checkout Belanjaan",
+        description:
+          "Memproses transaksi checkout kasir. Sistem akan memvalidasi stok setiap produk, menghitung total belanja dari harga aktual di database (bukan dari frontend), memvalidasi kecukupan uang bayar, menghasilkan nomor invoice struk unik, memotong stok produk, dan menyimpan semua data dalam satu database transaction (ACID) untuk menjamin konsistensi data.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "201": {
+            description:
+              "Transaksi berhasil, data invoice dan kembalian dikembalikan",
+          },
+          "400": {
+            description:
+              "Stok produk tidak mencukupi, uang bayar kurang, atau data produk tidak ditemukan",
+          },
+          "401": {
+            description: "Tidak terautentikasi (kasir belum login)",
+          },
+        },
+      },
     }
   )
 
-  // GET /api/transactions (Riwayat Transaksi)
+  // GET /api/transactions
   .get(
     "/",
     async ({ user, query, set }) => {
@@ -108,41 +142,84 @@ export const transactionRoutes = new Elysia({ prefix: "/api/transactions" })
     },
     {
       query: t.Object({
-        userId: t.Optional(t.String()),
+        userId: t.Optional(
+          t.String({
+            description: "Filter riwayat transaksi berdasarkan ID kasir",
+          })
+        ),
       }),
+      detail: {
+        tags: ["Transactions"],
+        summary: "Riwayat Transaksi",
+        description:
+          "Mengambil daftar seluruh riwayat transaksi kasir, diurutkan dari yang terbaru. Dapat difilter berdasarkan `userId` kasir tertentu melalui query parameter.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Daftar riwayat transaksi berhasil dikembalikan",
+          },
+          "401": {
+            description: "Tidak terautentikasi",
+          },
+        },
+      },
     }
   )
 
-  // GET /api/transactions/:id (Detail Nota / Invoice Transaksi)
-  .get("/:id", async ({ params: { id }, user, set }) => {
-    if (!user) {
-      set.status = 401;
-      return {
-        success: false,
-        message: "Unauthorized: Please log in to view transaction details",
-      };
-    }
-
-    try {
-      const transaction = await TransactionService.getTransactionDetails(id);
-
-      if (!transaction) {
-        set.status = 404;
+  // GET /api/transactions/:id
+  .get(
+    "/:id",
+    async ({ params: { id }, user, set }) => {
+      if (!user) {
+        set.status = 401;
         return {
           success: false,
-          message: "Transaction not found",
+          message: "Unauthorized: Please log in to view transaction details",
         };
       }
 
-      return {
-        success: true,
-        data: transaction,
-      };
-    } catch (err: any) {
-      set.status = 500;
-      return {
-        success: false,
-        message: err.message || "Internal server error",
-      };
+      try {
+        const transaction = await TransactionService.getTransactionDetails(id);
+
+        if (!transaction) {
+          set.status = 404;
+          return {
+            success: false,
+            message: "Transaction not found",
+          };
+        }
+
+        return {
+          success: true,
+          data: transaction,
+        };
+      } catch (err: any) {
+        set.status = 500;
+        return {
+          success: false,
+          message: err.message || "Internal server error",
+        };
+      }
+    },
+    {
+      detail: {
+        tags: ["Transactions"],
+        summary: "Detail Nota / Invoice Transaksi",
+        description:
+          "Mengambil detail lengkap satu transaksi beserta daftar item yang dibeli. Parameter `:id` dapat berupa ID numerik transaksi atau nomor invoice (contoh: `INV-20260923-12345`).",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": {
+            description:
+              "Detail transaksi beserta item-itemnya berhasil dikembalikan",
+          },
+          "401": {
+            description: "Tidak terautentikasi",
+          },
+          "404": {
+            description: "Transaksi tidak ditemukan",
+          },
+        },
+      },
     }
-  });
+  );

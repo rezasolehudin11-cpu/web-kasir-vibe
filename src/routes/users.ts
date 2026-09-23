@@ -31,11 +31,29 @@ export const authRoutes = new Elysia({ prefix: "/api/users" })
     },
     {
       body: t.Object({
-        name: t.String({ minLength: 2 }),
-        email: t.String({ format: "email" }),
-        password: t.String({ minLength: 6 }),
-        role: t.Optional(t.Union([t.Literal("admin"), t.Literal("kasir")])),
+        name: t.String({ minLength: 2, examples: ["Budi Santoso"] }),
+        email: t.String({ format: "email", examples: ["budi@kasir.com"] }),
+        password: t.String({ minLength: 6, examples: ["secret123"] }),
+        role: t.Optional(
+          t.Union([t.Literal("admin"), t.Literal("kasir")], {
+            examples: ["kasir"],
+          })
+        ),
       }),
+      detail: {
+        tags: ["Auth"],
+        summary: "Registrasi User Baru",
+        description:
+          "Mendaftarkan kasir atau admin baru ke dalam sistem. Password akan di-hash secara otomatis menggunakan Bun password hasher. Default role adalah `kasir`.",
+        responses: {
+          "201": {
+            description: "Registrasi berhasil, user berhasil dibuat",
+          },
+          "400": {
+            description: "Email sudah terdaftar atau validasi input gagal",
+          },
+        },
+      },
     }
   )
 
@@ -67,14 +85,28 @@ export const authRoutes = new Elysia({ prefix: "/api/users" })
     },
     {
       body: t.Object({
-        email: t.String({ format: "email" }),
-        password: t.String({ minLength: 1 }),
+        email: t.String({ format: "email", examples: ["budi@kasir.com"] }),
+        password: t.String({ minLength: 1, examples: ["secret123"] }),
       }),
+      detail: {
+        tags: ["Auth"],
+        summary: "Login User",
+        description:
+          "Verifikasi email dan password, lalu membuat session token baru. Token yang dikembalikan digunakan sebagai Bearer token untuk mengakses endpoint yang diproteksi.",
+        responses: {
+          "200": {
+            description: "Login berhasil, session token dikembalikan",
+          },
+          "401": {
+            description: "Email atau password salah",
+          },
+        },
+      },
     }
   )
 
-  // Middleware / Handler untuk Current User & Logout
-  .derive(async ({ headers, set }) => {
+  // Middleware derive auth guard
+  .derive(async ({ headers }) => {
     const authHeader = headers["authorization"];
     const token = authHeader?.startsWith("Bearer ")
       ? authHeader.slice(7)
@@ -89,34 +121,74 @@ export const authRoutes = new Elysia({ prefix: "/api/users" })
   })
 
   // GET /api/users/current
-  .get("/current", ({ user, set }) => {
-    if (!user) {
-      set.status = 401;
-      return {
-        success: false,
-        message: "Unauthorized or session expired",
-      };
-    }
+  .get(
+    "/current",
+    ({ user, set }) => {
+      if (!user) {
+        set.status = 401;
+        return {
+          success: false,
+          message: "Unauthorized or session expired",
+        };
+      }
 
-    return {
-      success: true,
-      data: user,
-    };
-  })
+      return {
+        success: true,
+        data: user,
+      };
+    },
+    {
+      detail: {
+        tags: ["Auth"],
+        summary: "Data User Saat Ini",
+        description:
+          "Mengambil data profil user yang sedang login berdasarkan Bearer token yang dikirim di header Authorization.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Data user berhasil dikembalikan",
+          },
+          "401": {
+            description: "Token tidak valid atau sesi sudah kadaluarsa",
+          },
+        },
+      },
+    }
+  )
 
   // DELETE /api/users/logout
-  .delete("/logout", async ({ token, user, set }) => {
-    if (!token || !user) {
-      set.status = 401;
-      return {
-        success: false,
-        message: "Unauthorized or session expired",
-      };
-    }
+  .delete(
+    "/logout",
+    async ({ token, user, set }) => {
+      if (!token || !user) {
+        set.status = 401;
+        return {
+          success: false,
+          message: "Unauthorized or session expired",
+        };
+      }
 
-    await AuthService.logout(token);
-    return {
-      success: true,
-      message: "Logged out successfully",
-    };
-  });
+      await AuthService.logout(token);
+      return {
+        success: true,
+        message: "Logged out successfully",
+      };
+    },
+    {
+      detail: {
+        tags: ["Auth"],
+        summary: "Logout User",
+        description:
+          "Menghapus session token dari database, sehingga token tidak lagi dapat digunakan untuk mengakses API.",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "Logout berhasil, session token dihapus",
+          },
+          "401": {
+            description: "Token tidak valid atau sesi sudah kadaluarsa",
+          },
+        },
+      },
+    }
+  );
