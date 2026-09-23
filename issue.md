@@ -1,76 +1,55 @@
-# Plan Implementation: Fitur Transaksi & Checkout Web Kasir
+# Plan Implementation: Dokumentasi Swagger API & Code Review Web Kasir
 
-Dokumen ini berisi kriteria tugas dan panduan implementasi untuk fitur Transaksi & Checkout pada backend Web Kasir menggunakan **Bun**, **Elysia.js**, dan **Drizzle ORM** dengan database **MySQL**.
-
----
-
-## 1. Pembaruan Skema Database (`src/db/schema.ts`)
-- [x] **Modifikasi Tabel `transactions`**:
-  - `id`: Int / Serial (Primary Key, Auto Increment)
-  - `invoiceNumber`: VarChar (Unique, untuk referensi nomor nota struk)
-  - `userId`: Int (Foreign Key ke `users.id` - kasir yang bertugas)
-  - `totalAmount`: Decimal / BigInt (Total belanjaan)
-  - `payAmount`: Decimal / BigInt (Uang yang dibayarkan pelanggan)
-  - `changeAmount`: Decimal / BigInt (Uang kembalian)
-  - `createdAt`: Timestamp
-- [x] **Modifikasi Tabel `transaction_items`**:
-  - `id`: Int / Serial (Primary Key, Auto Increment)
-  - `transactionId`: Int (Foreign Key ke `transactions.id`)
-  - `productId`: Int (Foreign Key ke `products.id`)
-  - `quantity`: Int (Jumlah barang dibeli)
-  - `price`: Decimal / BigInt (Harga barang satuan pada saat transaksi)
-  - `subtotal`: Decimal / BigInt (`quantity` x `price`)
-- [x] Jalankan perintah `bun run db:generate` dan `bun run db:push` untuk menerapkan perubahan skema ke database MySQL.
+Dokumen ini berisi kriteria tugas dan panduan implementasi untuk menambahkan Dokumentasi Swagger API dan menyempurnakan informasi proyek pada backend Web Kasir.
 
 ---
 
-## 2. Pembuatan Layer Service (`src/services/transaction.service.ts`)
-- [x] Buat class/module `TransactionService` untuk meng-handle logika bisnis transaksi:
-  - `checkout(userId, payload)`:
-    - Gunakan **Database Transaction** (`db.transaction(async (tx) => { ... })`) Drizzle ORM untuk menjamin atomicity.
-    - Cek ketersediaan setiap produk dari database (apakah stoknya mencukupi dari `quantity` yang dibeli).
-    - Lakukan kalkulasi ulang total di sisi server (jangan hanya percaya `totalAmount` dari frontend) = `Sum(quantity * db_price)`.
-    - Validasi `payAmount >= totalAmount`.
-    - Hitung `changeAmount = payAmount - totalAmount`.
-    - Simpan data header ke tabel `transactions` dengan men-generate `invoiceNumber` yang unik (misal: `INV-20260923-001`).
-    - Simpan masing-masing item ke tabel `transaction_items`.
-    - Potong stok tiap produk pada tabel `products` (`stock = stock - quantity`).
-  - `getTransactions(filters)`:
-    - Ambil daftar riwayat transaksi, opsional dengan filter tanggal atau userId kasir.
-  - `getTransactionDetails(identifier)`:
-    - Ambil detail satu transaksi beserta relasi item yang dibeli berdasarkan ID numerik atau `invoiceNumber`.
+## 1. Instalasi dan Setup Swagger (`src/index.ts`)
+- [ ] **Install Plugin Swagger**:
+  - Jalankan perintah instalasi: `bun add @elysiajs/swagger`
+- [ ] **Konfigurasi Elysia**:
+  - Import `swagger` dari `@elysiajs/swagger` di `src/index.ts`.
+  - Pasang (use) plugin swagger pada instance aplikasi Elysia utama.
+  - Konfigurasikan path agar UI Swagger dapat diakses di `/swagger`.
+  - Tambahkan konfigurasi metadata dasar Swagger seperti `title` (misal: "Web Kasir API Documentation"), `description`, dan `version`.
 
 ---
 
-## 3. Implementasi REST API (`src/routes/transactions.ts`)
-Buat modular route di Elysia.js untuk endpoint transaksi. Integrasikan ke `src/index.ts` dan **wajib gunakan Auth Guard** untuk semua route di bawah ini.
+## 2. Dokumentasi Endpoint API (Schema, Request, & Response)
+Lengkapi dekorator schema pada seluruh endpoint agar muncul dengan rapi dan informatif di Swagger UI. Gunakan fungsionalitas `detail` pada object schema endpoint.
 
-- [x] **`POST /api/transactions` (Proses Checkout)**:
-  - Diproteksi Auth Guard (hanya user login yang bisa melakukan).
-  - Validasi body request menggunakan schema Elysia:
-    - `payAmount`: Number/String.
-    - `items`: Array dari object `{ productId, quantity }`.
-  - Ambil `userId` dari token session yang sedang login.
-  - Panggil `TransactionService.checkout(userId, body)`.
-  - Return respon status 201 dengan informasi nota/invoice transaksi yang sukses beserta kembalian.
-  - Jika stok kurang atau uang kurang, return 400 Bad Request.
+- [ ] **Endpoint Autentikasi (`src/routes/users.ts`)**:
+  - Tambahkan deksripsi, tags (misal: `['Auth']`), dan tipe response untuk `POST /api/users/register`.
+  - Tambahkan deksripsi, tags, dan tipe response untuk `POST /api/users/login`.
+  - Tambahkan deksripsi, tags, dan informasi Authorization (Bearer token) untuk `GET /api/users/current`.
+  - Tambahkan deksripsi, tags untuk `DELETE /api/users/logout`.
 
-- [x] **`GET /api/transactions` (Daftar Riwayat Transaksi)**:
-  - Diproteksi Auth Guard.
-  - Panggil `TransactionService.getTransactions()`.
-  - Return daftar riwayat transaksi kasir.
+- [ ] **Endpoint Produk (`src/routes/products.ts`)**:
+  - Tambahkan deskripsi, tags (`['Products']`), dan contoh request payload untuk `POST /api/products`.
+  - Tambahkan deskripsi, tags, dan dokumentasi query params (`name`, `category`) untuk `GET /api/products`.
+  - Tambahkan deskripsi, tags, dan params detail untuk `GET /api/products/:id`.
+  - Tambahkan deskripsi, tags, dan payload contoh untuk update di `PUT /api/products/:id`.
+  - Tambahkan deskripsi dan tags untuk penghapusan di `DELETE /api/products/:id`.
 
-- [x] **`GET /api/transactions/:id` (Detail Transaksi / Nota)**:
-  - Diproteksi Auth Guard.
-  - Tangkap parameter `:id` (bisa ID atau `invoiceNumber`).
-  - Return detail transaksi beserta item-itemnya. Jika tidak ada, return 404 Not Found.
+- [ ] **Endpoint Transaksi (`src/routes/transactions.ts`)**:
+  - Tambahkan deskripsi lengkap, tags (`['Transactions']`), dan contoh payload kompleks (payAmount, items array) untuk `POST /api/transactions`.
+  - Tambahkan deskripsi, tags, dan query parameter untuk filter `userId` di `GET /api/transactions`.
+  - Tambahkan deskripsi, tags untuk mengambil detail nota di `GET /api/transactions/:id`.
 
 ---
 
-## 4. Pengujian Unit (Unit Test) (`tests/transaction.test.ts`)
-- [x] Buat file test `tests/transaction.test.ts`.
-- [x] Tulis test case menggunakan `bun test`:
-  - `POST /api/transactions` tanpa token harus mereturn 401 Unauthorized.
-  - Payload checkout dengan format salah ditolak oleh validasi Elysia.
-  - Jika `payAmount` lebih kecil dari `totalAmount`, harus me-return 400 Bad Request atau throw validasi dari service.
-  - Simulasi checkout sukses mengembalikan `invoiceNumber` dan status 201 (opsional: dapat dimock service-nya atau menggunakan test db).
+## 3. Pembuatan Dokumentasi Proyek (`README.md`)
+Buatkan file `README.md` baru di root direktori yang berisi panduan lengkap untuk developer lain:
+
+- [ ] **Deskripsi dan Arsitektur Proyek**:
+  - Penjelasan singkat tentang aplikasi Web Kasir.
+  - Tech stack yang digunakan (Bun, Elysia.js, Drizzle ORM, MySQL).
+- [ ] **Cara Setup Database MySQL**:
+  - Persyaratan environment variables (kebutuhan `.env` seperti `DATABASE_URL`).
+  - Perintah migrasi dan sinkronisasi skema (`bun run db:generate` dan `bun run db:push`).
+- [ ] **Cara Menjalankan Server**:
+  - Instalasi dependency awal (`bun install`).
+  - Cara running di development mode (`bun dev` atau `bun run dev`).
+  - Lokasi akses API (misal: `http://localhost:3000`) dan Swagger UI (`http://localhost:3000/swagger`).
+- [ ] **Cara Menjalankan Unit Test**:
+  - Perintah untuk mengeksekusi testing suite (`bun test`).
