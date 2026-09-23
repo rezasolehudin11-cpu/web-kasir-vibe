@@ -31,15 +31,20 @@ export const products = mysqlTable("products", {
 
 export const transactions = mysqlTable("transactions", {
   id: serial("id").primaryKey(),
-  userId: int("user_id").references(() => users.id),
+  invoiceNumber: varchar("invoice_number", { length: 100 }).notNull().unique(),
+  userId: int("user_id").references(() => users.id).notNull(),
   totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+  payAmount: decimal("pay_amount", { precision: 12, scale: 2 }).notNull(),
+  changeAmount: decimal("change_amount", { precision: 12, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const transactionItems = mysqlTable("transaction_items", {
   id: serial("id").primaryKey(),
-  transactionId: int("transaction_id").references(() => transactions.id),
-  productId: int("product_id").references(() => products.id),
+  transactionId: int("transaction_id").references(() => transactions.id).notNull(),
+  productId: int("product_id").references(() => products.id).notNull(),
   quantity: int("quantity").notNull(),
   price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
 });
+
