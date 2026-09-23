@@ -90,32 +90,40 @@ export class AuthService {
   }
 
   static async validateSession(token: string) {
-    const now = new Date();
-    const result = await db
-      .select({
-        session: sessions,
-        user: {
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          role: users.role,
-          createdAt: users.createdAt,
-        },
-      })
-      .from(sessions)
-      .innerJoin(users, eq(sessions.userId, users.id))
-      .where(and(eq(sessions.token, token), gt(sessions.expiresAt, now)))
-      .limit(1);
+    try {
+      const now = new Date();
+      const result = await db
+        .select({
+          session: sessions,
+          user: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: users.role,
+            createdAt: users.createdAt,
+          },
+        })
+        .from(sessions)
+        .innerJoin(users, eq(sessions.userId, users.id))
+        .where(and(eq(sessions.token, token), gt(sessions.expiresAt, now)))
+        .limit(1);
 
-    if (result.length === 0) {
+      if (result.length === 0) {
+        return null;
+      }
+
+      return result[0].user;
+    } catch {
       return null;
     }
-
-    return result[0].user;
   }
 
   static async logout(token: string) {
-    await db.delete(sessions).where(eq(sessions.token, token));
-    return true;
+    try {
+      await db.delete(sessions).where(eq(sessions.token, token));
+      return true;
+    } catch {
+      return true;
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { mysqlTable, serial, varchar, text, decimal, int, timestamp, mysqlEnum } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
 
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
@@ -19,10 +20,13 @@ export const sessions = mysqlTable("sessions", {
 
 export const products = mysqlTable("products", {
   id: serial("id").primaryKey(),
+  code: varchar("code", { length: 100 }).unique(),
   name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }),
   price: decimal("price", { precision: 12, scale: 2 }).notNull(),
   stock: int("stock").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`).notNull(),
 });
 
 export const transactions = mysqlTable("transactions", {
