@@ -1,55 +1,101 @@
-# Plan Implementation: Dokumentasi Swagger API & Code Review Web Kasir
+# Plan Implementation: Frontend Web Kasir — Tahap 1: Setup Proyek Next.js & Halaman Login
 
-Dokumen ini berisi kriteria tugas dan panduan implementasi untuk menambahkan Dokumentasi Swagger API dan menyempurnakan informasi proyek pada backend Web Kasir.
-
----
-
-## 1. Instalasi dan Setup Swagger (`src/index.ts`)
-- [ ] **Install Plugin Swagger**:
-  - Jalankan perintah instalasi: `bun add @elysiajs/swagger`
-- [ ] **Konfigurasi Elysia**:
-  - Import `swagger` dari `@elysiajs/swagger` di `src/index.ts`.
-  - Pasang (use) plugin swagger pada instance aplikasi Elysia utama.
-  - Konfigurasikan path agar UI Swagger dapat diakses di `/swagger`.
-  - Tambahkan konfigurasi metadata dasar Swagger seperti `title` (misal: "Web Kasir API Documentation"), `description`, dan `version`.
+Dokumen ini berisi kriteria tugas dan panduan implementasi untuk membangun frontend aplikasi Web Kasir menggunakan **Next.js (App Router)**, **TypeScript**, dan **Tailwind CSS**. Tahap pertama ini berfokus pada setup proyek, autentikasi, dan halaman login kasir.
 
 ---
 
-## 2. Dokumentasi Endpoint API (Schema, Request, & Response)
-Lengkapi dekorator schema pada seluruh endpoint agar muncul dengan rapi dan informatif di Swagger UI. Gunakan fungsionalitas `detail` pada object schema endpoint.
+## 1. Setup Proyek Next.js (`frontend/`)
 
-- [ ] **Endpoint Autentikasi (`src/routes/users.ts`)**:
-  - Tambahkan deksripsi, tags (misal: `['Auth']`), dan tipe response untuk `POST /api/users/register`.
-  - Tambahkan deksripsi, tags, dan tipe response untuk `POST /api/users/login`.
-  - Tambahkan deksripsi, tags, dan informasi Authorization (Bearer token) untuk `GET /api/users/current`.
-  - Tambahkan deksripsi, tags untuk `DELETE /api/users/logout`.
+- [ ] **Inisialisasi Proyek Next.js** di dalam folder `frontend/`:
+  - Gunakan `npx create-next-app@latest ./frontend` dengan opsi:
+    - App Router: **Ya**
+    - TypeScript: **Ya**
+    - Tailwind CSS: **Ya**
+    - ESLint: **Ya**
+    - `src/` directory: **Ya**
+  - Pastikan proyek dapat dijalankan dengan `npm run dev` di folder `frontend/`.
 
-- [ ] **Endpoint Produk (`src/routes/products.ts`)**:
-  - Tambahkan deskripsi, tags (`['Products']`), dan contoh request payload untuk `POST /api/products`.
-  - Tambahkan deskripsi, tags, dan dokumentasi query params (`name`, `category`) untuk `GET /api/products`.
-  - Tambahkan deskripsi, tags, dan params detail untuk `GET /api/products/:id`.
-  - Tambahkan deskripsi, tags, dan payload contoh untuk update di `PUT /api/products/:id`.
-  - Tambahkan deskripsi dan tags untuk penghapusan di `DELETE /api/products/:id`.
+- [ ] **Install Dependensi UI Pendukung**:
+  - `lucide-react` — Library ikon modern dan ringan.
+  - `axios` — HTTP client untuk komunikasi dengan backend API.
+  - `clsx` dan `tailwind-merge` — Utility untuk menggabungkan dan mengelola Tailwind CSS class secara kondisional.
+  - Perintah: `npm install lucide-react axios clsx tailwind-merge`
 
-- [ ] **Endpoint Transaksi (`src/routes/transactions.ts`)**:
-  - Tambahkan deskripsi lengkap, tags (`['Transactions']`), dan contoh payload kompleks (payAmount, items array) untuk `POST /api/transactions`.
-  - Tambahkan deskripsi, tags, dan query parameter untuk filter `userId` di `GET /api/transactions`.
-  - Tambahkan deskripsi, tags untuk mengambil detail nota di `GET /api/transactions/:id`.
+- [ ] **Konfigurasi Tailwind & Global Styles**:
+  - Sesuaikan `tailwind.config.ts` jika diperlukan (tambahkan custom color palette tema kasir).
+  - Pastikan `src/app/globals.css` sudah mengimpor directive Tailwind (`@tailwind base; @tailwind components; @tailwind utilities;`).
+  - Tambahkan font modern (misal: Inter atau Outfit) dari Google Fonts melalui `next/font`.
 
 ---
 
-## 3. Pembuatan Dokumentasi Proyek (`README.md`)
-Buatkan file `README.md` baru di root direktori yang berisi panduan lengkap untuk developer lain:
+## 2. HTTP Client Helper (`src/lib/api.ts`)
 
-- [ ] **Deskripsi dan Arsitektur Proyek**:
-  - Penjelasan singkat tentang aplikasi Web Kasir.
-  - Tech stack yang digunakan (Bun, Elysia.js, Drizzle ORM, MySQL).
-- [ ] **Cara Setup Database MySQL**:
-  - Persyaratan environment variables (kebutuhan `.env` seperti `DATABASE_URL`).
-  - Perintah migrasi dan sinkronisasi skema (`bun run db:generate` dan `bun run db:push`).
-- [ ] **Cara Menjalankan Server**:
-  - Instalasi dependency awal (`bun install`).
-  - Cara running di development mode (`bun dev` atau `bun run dev`).
-  - Lokasi akses API (misal: `http://localhost:3000`) dan Swagger UI (`http://localhost:3000/swagger`).
-- [ ] **Cara Menjalankan Unit Test**:
-  - Perintah untuk mengeksekusi testing suite (`bun test`).
+- [ ] **Buat file `src/lib/api.ts`** berisi instance Axios yang sudah terkonfigurasi:
+  - `baseURL`: `http://localhost:3000` (URL backend Elysia.js).
+  - Default headers: `Content-Type: application/json`.
+  - Interceptor request: Otomatis menyisipkan header `Authorization: Bearer <token>` dari storage/cookie jika token tersedia.
+  - Interceptor response (opsional): Handle error 401 secara global (redirect ke `/login` jika sesi habis).
+
+---
+
+## 3. Auth Context / Store (`src/context/AuthContext.tsx`)
+
+- [ ] **Buat Auth Context menggunakan React Context API**:
+  - State yang dikelola:
+    - `user`: Data user yang sedang login (id, name, email, role) atau `null`.
+    - `token`: String session token atau `null`.
+    - `isAuthenticated`: Boolean, `true` jika user sudah login.
+    - `isLoading`: Boolean, `true` saat sedang memvalidasi sesi.
+  - Fungsi yang disediakan:
+    - `login(email, password)`: Memanggil `POST /api/users/login`, menyimpan token ke localStorage/cookie, meng-set state user.
+    - `logout()`: Memanggil `DELETE /api/users/logout`, menghapus token dari storage, reset state user.
+    - `checkAuth()`: Memanggil `GET /api/users/current` untuk memvalidasi token yang tersimpan saat aplikasi pertama kali dimuat.
+  - Token disimpan di **localStorage** (atau `js-cookie` untuk cookie-based).
+  - `AuthProvider` membungkus seluruh aplikasi di `src/app/layout.tsx`.
+
+---
+
+## 4. Halaman Login (`src/app/login/page.tsx`)
+
+- [ ] **Buat halaman `/login`** dengan desain UI kasir modern, responsif, dan clean:
+  - Layout: Centered card di tengah layar dengan background gradient atau pattern menarik.
+  - Judul/branding: Nama aplikasi "Web Kasir" atau logo.
+  - Form input:
+    - Field **Email** dengan ikon (lucide-react `Mail` icon) dan placeholder.
+    - Field **Password** dengan ikon (lucide-react `Lock` icon), placeholder, dan toggle show/hide password.
+  - Tombol **Login** dengan efek hover dan loading state (spinner saat proses login).
+  - Tampilkan pesan error jika login gagal (email/password salah).
+  - Gunakan warna dan tipografi premium (hindari tampilan generik/polos).
+
+- [ ] **Integrasi dengan API Backend**:
+  - Saat form di-submit, panggil `AuthContext.login(email, password)` yang di balik layar memanggil `POST /api/users/login`.
+  - Jika berhasil: Simpan token, redirect ke `/dashboard` menggunakan `useRouter().push('/dashboard')`.
+  - Jika gagal: Tampilkan pesan error di bawah form tanpa reload halaman.
+
+- [ ] **Validasi Form Client-Side**:
+  - Email wajib diisi dan format valid.
+  - Password wajib diisi (minimal 1 karakter).
+  - Disable tombol login saat field kosong atau sedang loading.
+
+---
+
+## 5. Halaman Dashboard Placeholder (`src/app/dashboard/page.tsx`)
+
+- [ ] **Buat halaman `/dashboard`** sebagai placeholder awal:
+  - Tampilkan pesan sambutan: "Selamat datang, {nama user}!" dengan informasi role.
+  - Tampilkan tombol **Logout** yang memanggil `AuthContext.logout()` dan redirect ke `/login`.
+  - Layout sederhana namun rapi (sidebar placeholder atau top navigation bar).
+
+- [ ] **Auth Guard / Route Protection**:
+  - Buat komponen wrapper atau middleware yang mengecek `isAuthenticated` dari `AuthContext`.
+  - Jika user belum login (tidak ada token valid), otomatis redirect ke `/login`.
+  - Tampilkan loading spinner/skeleton saat sedang memvalidasi sesi (`isLoading = true`).
+
+---
+
+## 6. Konfigurasi CORS & Proxy (Opsional)
+
+- [ ] **Pastikan backend Elysia.js mengizinkan CORS** dari `http://localhost:3000` (frontend Next.js biasanya di port 3000, backend mungkin perlu pindah port atau setup proxy).
+  - Opsi A: Ubah port backend Elysia ke `3001` dan set `baseURL` di `api.ts` ke `http://localhost:3001`.
+  - Opsi B: Gunakan `next.config.ts` rewrites sebagai proxy ke backend.
+  - Pastikan plugin `@elysiajs/cors` di backend sudah aktif dan mengizinkan origin frontend.
